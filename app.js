@@ -31,6 +31,8 @@ fs.readdir(__dirname + '/wolfpack', function (err, files) {
         // Add routes.
         if (typeof module.routes != 'undefined') {
           for (route in module.routes) {
+            var route_regex = route.replace(/\/\%[^\/]+/g, '\/[^\/]+'); 
+            module.routes[route].regex = new RegExp('^' + route_regex);
             WolfPack.addRoute(route, module.routes[route]);
           }
         }
@@ -81,9 +83,7 @@ http.createServer(function (req, res) {
     // @todo bail out once we've found the matching URL
     // @todo is there a quicker way to find a matching route?
     // @todo the regex_match_route and regex_route should be added at server startup time
-    var regex_match_route = route.replace(/\/\%[^\/]+/g, '\/[^\/]+'); 
-    var regex_route = new RegExp('^' + regex_match_route);
-    if (req.url.match(regex_route)) {
+    if (req.url.match(WolfPack.routes[route].regex)) {
       req.wolfpack.args = getUrlArgs(req.url, route);
       var value = WolfPack.routes[route].callback(req, res);
       break;
@@ -97,6 +97,7 @@ http.createServer(function (req, res) {
     }
   }
 
+  // @todo write a 404 fail-out
   res.writeHead(200, {'Content-Type': 'text/plain'});
   res.end(value + '\n');
 }).listen(4000);
