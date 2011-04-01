@@ -47,6 +47,9 @@ fs.readdir(__dirname + '/wolfpack', function (err, files) {
  * name, like: /view/%something - this will match the second position
  * in the corresponding URL string, e.g. /view/123. The resulting
  * array will look like [something: 123]
+ * 
+ * Additionally, query string parameters, e.g. ?value=123 will also
+ * be processed into the return value like [value: 123]
  *
  * @param String url
  *  The request URL string
@@ -57,6 +60,22 @@ var getUrlArgs = function(url, route) {
   // @todo should we modulize the route matching and argument parsing?
   // @todo bail out if /\%/ is not found in the route
   var args = new Array();
+
+  // Split the query string and parse the arguments.
+  var query_string = url.match(/\?.*$/g);
+  if (query_string) {
+    var qs_param_string = query_string[0].replace(/\?/, '');
+    qs_params = qs_param_string.split('&');
+    for (param in qs_params) {
+      var value = qs_params[param].split('=');
+      if (value) {
+        args[value[0]] = value[1];
+      }
+    }
+  }
+
+  // Remove the query string and parse route arguments.
+  var url = url.replace(/\?.*$/, '');
   var arg_names = route.match(/\/([^\/]+)/g);
   var arg_values = url.match(/\/([^\/]+)/g);
  
@@ -75,14 +94,13 @@ var getUrlArgs = function(url, route) {
  */
 http.createServer(function (req, res) {
 //console.log(req);
+  // Allow us to keep things in the request object, such as URL arguments.
   req.wolfpack = {};
 
   // Invoke wolfpack routes. Each will be a regex matching the beginning
   // of the request url.
   for (route in WolfPack.routes) {
-    // @todo bail out once we've found the matching URL
     // @todo is there a quicker way to find a matching route?
-    // @todo the regex_match_route and regex_route should be added at server startup time
     if (req.url.match(WolfPack.routes[route].regex)) {
       req.wolfpack.args = getUrlArgs(req.url, route);
       var value = WolfPack.routes[route].callback(req, res);
