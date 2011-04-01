@@ -1,0 +1,11 @@
+exports.create = function(value) {
+  return value + ' altered';
+}
+
+exports.routes = {
+  '/home/%something/%anotherthing': {
+    'callback': function(req, res) {
+       return 'home; something = ' + req.wolfpack.args.something + '; anotherthing = ' + req.wolfpack.args.anotherthing;
+    }
+  }
+}

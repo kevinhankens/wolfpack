@@ -14,6 +14,9 @@ var WolfPack = {
 
 /**
  * Load wolfpack modules and routes.
+ * All custom modules in /wolfpack will be processed here and
+ * stored in memory. These objects can emit things like routes,
+ * aspect overrides, etc.
  */
 fs.readdir(__dirname + '/wolfpack', function (err, files) {
   if (err) {
@@ -36,13 +39,54 @@ fs.readdir(__dirname + '/wolfpack', function (err, files) {
   }
 });
 
+/**
+ * Parse a URL and it's matching route and extract any arguments.
+ * The routes may specify arguments by prepending a % to a variable
+ * name, like: /view/%something - this will match the second position
+ * in the corresponding URL string, e.g. /view/123. The resulting
+ * array will look like [something: 123]
+ *
+ * @param String url
+ *  The request URL string
+ * @param String route
+ *  The matching route from a wolfpack module
+ */
+var getUrlArgs = function(url, route) {
+  // @todo should we modulize the route matching and argument parsing?
+  // @todo bail out if /\%/ is not found in the route
+  var args = new Array();
+  var arg_names = route.match(/\/([^\/]+)/g);
+  var arg_values = url.match(/\/([^\/]+)/g);
+ 
+  for (arg in arg_names) {
+    name = arg_names[arg];
+    if (name.match(/\/\%/)) {
+      args[name.replace(/\/\%/, '')] = arg_values[arg].replace(/\//, '');
+    }
+  }
+
+  return args;
+}
+
+/**
+ * Start the server.
+ */
 http.createServer(function (req, res) {
 //console.log(req);
+  req.wolfpack = {};
 
-  // Invoke wolfpack routes
+  // Invoke wolfpack routes. Each will be a regex matching the beginning
+  // of the request url.
   for (route in WolfPack.routes) {
-    if (route.match(req.url)) {
+    // @todo bail out once we've found the matching URL
+    // @todo is there a quicker way to find a matching route?
+    // @todo the regex_match_route and regex_route should be added at server startup time
+    var regex_match_route = route.replace(/\/\%[^\/]+/g, '\/[^\/]+'); 
+    var regex_route = new RegExp('^' + regex_match_route);
+    if (req.url.match(regex_route)) {
+      req.wolfpack.args = getUrlArgs(req.url, route);
       var value = WolfPack.routes[route].callback(req, res);
+      break;
     }
   }
 
