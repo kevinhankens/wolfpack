@@ -1,6 +1,7 @@
 var http = require('http')
     fs = require('fs')
-    url = require(__dirname + '/core/urlparser.js');
+    url = require(__dirname + '/core/urlparser.js')
+    jade = require('jade');
 
 var WolfPack = {
   modules: {},
@@ -58,7 +59,7 @@ http.createServer(function (req, res) {
     // @todo is there a quicker way to find a matching route?
     if (req_url.match(WolfPack.routes[route].regex)) {
       req.wolfpack.args = url.parse(req.url, route);
-      var value = WolfPack.routes[route].callback(req, res);
+      var template = WolfPack.routes[route].callback(req, res);
       break;
     }
   }
@@ -66,13 +67,24 @@ http.createServer(function (req, res) {
   // Invoke wolfpack modules
   for (module in WolfPack.modules) {
     if (typeof WolfPack.modules[module].create != 'undefined') {
-      value = WolfPack.modules[module].create(value);
+      //value = WolfPack.modules[module].create(value);
     }
   }
 
-  // @todo write a 404 fail-out
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end(value + '\n');
+  // @todo write a better 404 fail-out
+  if (typeof template != 'undefined') {
+    jade.renderFile(template.file, {locals: template.locals}, function(err, html) {
+      jade.renderFile('views/layout.jade', {locals: {content: html}}, function(err, html) {
+        res.writeHead(200, {'Content-Type': 'text/html'});
+        res.end(html + '\n');
+      });
+    });
+  }
+  else {
+    console.log(req.url);
+    res.writeHead(404, {'Content-Type': 'text/html'});
+    res.end('Page not found: ' + req.url + '\n');
+  }
 }).listen(4000);
 
 console.log('Server running at http://127.0.0.1:4000/');
