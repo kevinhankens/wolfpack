@@ -1,7 +1,9 @@
 var http = require('http')
     fs = require('fs')
     url = require(__dirname + '/core/urlparser.js')
-    jade = require('jade');
+    theme = require(__dirname + '/core/theme.js');
+
+var Config = require(__dirname + '/config.js');
 
 var WolfPack = {
   modules: {},
@@ -13,6 +15,9 @@ var WolfPack = {
     this.routes[name] = route;
   },
 }
+
+// Set up theming
+// @todo allow modules to override the theme object.
 
 /**
  * Load wolfpack modules and routes.
@@ -73,8 +78,8 @@ http.createServer(function (req, res) {
 
   // @todo write a better 404 fail-out
   if (typeof template != 'undefined') {
-    jade.renderFile(template.file, {locals: template.locals}, function(err, html) {
-      jade.renderFile('views/layout.jade', {locals: {content: html}}, function(err, html) {
+    theme.def.renderFile(template.file, {locals: template.locals}, function(err, html) {
+      theme.def.renderFile(theme.def.views + '/' + theme.def.layout, {locals: {content: html}}, function(err, html) {
         res.writeHead(200, {'Content-Type': 'text/html'});
         res.end(html + '\n');
       });
