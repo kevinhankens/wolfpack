@@ -2,3 +2,4 @@ wolfpack/*
 !wolfpack/example.js.txt
 views/*
 !views/example-layout.jade.txt
+config.js
