@@ -1,7 +1,8 @@
 var http = require('http')
     fs = require('fs')
     url = require(__dirname + '/core/urlparser.js')
-    theme = require(__dirname + '/core/theme.js');
+    theme = require(__dirname + '/core/theme.js')
+    form = require(__dirname + '/core/form.js');
 
 var Config = require(__dirname + '/config.js');
 
@@ -59,7 +60,7 @@ http.createServer(function (req, res) {
   // Invoke wolfpack routes. Each will be a regex matching the beginning
   // of the request URL. Query string parameters are stripped for pattern
   // matching, but they are still sent to the argument parser.
-  var req_url = req.url.replace(/\?.*$/, '');
+  var req_url = req.method + ':' + req.url.replace(/\?.*$/, '');
   for (route in WolfPack.routes) {
     // @todo is there a quicker way to find a matching route?
     if (req_url.match(WolfPack.routes[route].regex)) {
@@ -76,6 +77,7 @@ http.createServer(function (req, res) {
     }
   }
 
+  // @todo internal/external redirect support needed.
   // @todo write a better 404 fail-out
   if (typeof template != 'undefined') {
     theme.def.renderFile(template.file, {locals: template.locals}, function(err, html) {
