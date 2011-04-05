@@ -14,8 +14,10 @@ var WolfPack = {
   addModule: function(name, module) {
     this.modules[name] = module;
   },
-  addRoute: function(name, route) {
-    this.routes[name] = route;
+  addRoute: function(path, route) {
+    var route_regex = path.replace(/\/\%[^\/]+/g, '\/[^\/]+'); 
+    route.regex = new RegExp('^' + route_regex + '$');
+    this.routes[path] = route;
   },
   addContentType: function (type, def) {
     this.content_types[type] = def;
@@ -25,11 +27,9 @@ var WolfPack = {
 /**
  * Set up CRUD routing.
  */
+// @todo should this be more generic, like core routing?
 // @todo allow module overrides.
-// @todo abstract out the regex creation?
 for (route in crud.routes) {
-  var route_regex = route.replace(/\/\%[^\/]+/g, '\/[^\/]+'); 
-  crud.routes[route].regex = new RegExp('^' + route_regex + '$');
   WolfPack.addRoute(route, crud.routes[route]);
 }
 
@@ -56,8 +56,6 @@ fs.readdir(__dirname + '/wolfpack', function (err, files) {
         // Add routes.
         if (typeof module.routes != 'undefined') {
           for (route in module.routes) {
-            var route_regex = route.replace(/\/\%[^\/]+/g, '\/[^\/]+'); 
-            module.routes[route].regex = new RegExp('^' + route_regex + '$');
             WolfPack.addRoute(route, module.routes[route]);
           }
         }
