@@ -2,19 +2,35 @@ var http = require('http')
     fs = require('fs')
     url = require(__dirname + '/core/urlparser.js')
     theme = require(__dirname + '/core/theme.js')
-    form = require(__dirname + '/core/form.js');
+    form = require(__dirname + '/core/form.js')
+    crud = require(__dirname + '/core/crud.js');
 
 var Config = require(__dirname + '/config.js');
 
 var WolfPack = {
   modules: {},
   routes: {},
+  content_types: {},
   addModule: function(name, module) {
     this.modules[name] = module;
   },
   addRoute: function(name, route) {
     this.routes[name] = route;
   },
+  addContentType: function (type, def) {
+    this.content_types[type] = def;
+  },
+}
+
+/**
+ * Set up CRUD routing.
+ */
+// @todo allow module overrides.
+// @todo abstract out the regex creation?
+for (route in crud.routes) {
+  var route_regex = route.replace(/\/\%[^\/]+/g, '\/[^\/]+'); 
+  crud.routes[route].regex = new RegExp('^' + route_regex + '$');
+  WolfPack.addRoute(route, crud.routes[route]);
 }
 
 // Set up theming
@@ -26,6 +42,7 @@ var WolfPack = {
  * stored in memory. These objects can emit things like routes,
  * aspect overrides, etc.
  */
+// @todo how can we make an api out of the known overrides? e.g. content types and routing?
 fs.readdir(__dirname + '/wolfpack', function (err, files) {
   if (err) {
     console.log(err);
@@ -42,6 +59,12 @@ fs.readdir(__dirname + '/wolfpack', function (err, files) {
             var route_regex = route.replace(/\/\%[^\/]+/g, '\/[^\/]+'); 
             module.routes[route].regex = new RegExp('^' + route_regex + '$');
             WolfPack.addRoute(route, module.routes[route]);
+          }
+        }
+        // Add content types.
+        if (typeof module.content_types != 'undefined') {
+          for (type in module.content_types) {
+            WolfPack.addContentType(type, module.content_types[type]);
           }
         }
       }
@@ -65,6 +88,7 @@ http.createServer(function (req, res) {
     // @todo is there a quicker way to find a matching route?
     if (req_url.match(WolfPack.routes[route].regex)) {
       req.wolfpack.args = url.parse(req.url, route);
+      req.wolfpack.content_types = WolfPack.content_types;;
       var template = WolfPack.routes[route].callback(req, res);
       break;
     }
