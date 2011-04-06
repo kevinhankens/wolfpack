@@ -5,6 +5,8 @@ exports.routes = {
       // wolfpack module export. e.g. exports.content_types.form.
       if (typeof req.wolfpack.content_types[req.wolfpack.args.type] != 'undefined') {
         var def = req.wolfpack.content_types[req.wolfpack.args.type].form;
+        def.method = 'POST';
+        def.action = '/create/' + req.wolfpack.args.type;
         var form_create = new form.engine(def);
         var message = form_create.renderForm();
       }
@@ -13,6 +15,7 @@ exports.routes = {
         var message = 'Content type not found';
       }
 
+      // @todo template file for crud routes.
       return {
         file: 'views/home.jade',
         locals: {
@@ -20,6 +23,16 @@ exports.routes = {
         }
       }
     }
-  }
+  },
+  'POST:/create/%type': {
+    callback: function(req, res) {
+      return {
+        file: 'views/home.jade',
+        locals: {
+          message: 'RECEIVED!',
+        }
+      }
+    }
+  },
 }
 

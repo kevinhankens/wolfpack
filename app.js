@@ -1,9 +1,13 @@
-var http = require('http')
+var 
     fs = require('fs')
     url = require(__dirname + '/core/urlparser.js')
     theme = require(__dirname + '/core/theme.js')
     form = require(__dirname + '/core/form.js')
-    crud = require(__dirname + '/core/crud.js');
+    crud = require(__dirname + '/core/crud.js')
+    connect = require('connect')
+    connect_form = require('connect-form')
+    ;
+// @todo use require('url').parse('/status?name=ryan', true) instead of custom query parser?
 
 var Config = require(__dirname + '/config.js');
 
@@ -70,50 +74,67 @@ fs.readdir(__dirname + '/wolfpack', function (err, files) {
   }
 });
 
+var respond = {
+  success: function(req, res) {
+    //console.log(req.body);
+    // Allow us to keep things in the request object, such as URL arguments.
+    req.wolfpack = {};
+
+    // Invoke wolfpack routes. Each will be a regex matching the beginning
+    // of the request URL. Query string parameters are stripped for pattern
+    // matching, but they are still sent to the argument parser.
+    var req_url = req.method + ':' + req.url.replace(/\?.*$/, '');
+    for (route in WolfPack.routes) {
+      // @todo is there a quicker way to find a matching route?
+      if (req_url.match(WolfPack.routes[route].regex)) {
+        req.wolfpack.args = url.parse(req.url, route);
+        req.wolfpack.content_types = WolfPack.content_types;
+        var template = WolfPack.routes[route].callback(req, res);
+        break;
+      }
+    }
+
+    // Invoke wolfpack modules
+    for (module in WolfPack.modules) {
+      if (typeof WolfPack.modules[module].create != 'undefined') {
+        //value = WolfPack.modules[module].create(value);
+      }
+    }
+
+    // @todo internal/external redirect support needed.
+    // @todo write a better 404 fail-out
+    if (typeof template != 'undefined') {
+      theme.def.renderFile(template.file, {locals: template.locals}, function(err, html) {
+        theme.def.renderFile(theme.def.views + '/' + theme.def.layout, {locals: {content: html}}, function(err, html) {
+          res.writeHead(200, {'Content-Type': 'text/html'});
+          res.end(html + '\n');
+        });
+      });
+    }
+    else {
+      console.log(req.url);
+      res.writeHead(404, {'Content-Type': 'text/html'});
+      res.end('Page not found: ' + req.url + '\n');
+    }
+  },
+}
+
+
 /**
  * Start the server.
  */
-http.createServer(function (req, res) {
-//console.log(req);
-  // Allow us to keep things in the request object, such as URL arguments.
-  req.wolfpack = {};
-
-  // Invoke wolfpack routes. Each will be a regex matching the beginning
-  // of the request URL. Query string parameters are stripped for pattern
-  // matching, but they are still sent to the argument parser.
-  var req_url = req.method + ':' + req.url.replace(/\?.*$/, '');
-  for (route in WolfPack.routes) {
-    // @todo is there a quicker way to find a matching route?
-    if (req_url.match(WolfPack.routes[route].regex)) {
-      req.wolfpack.args = url.parse(req.url, route);
-      req.wolfpack.content_types = WolfPack.content_types;;
-      var template = WolfPack.routes[route].callback(req, res);
-      break;
-    }
-  }
-
-  // Invoke wolfpack modules
-  for (module in WolfPack.modules) {
-    if (typeof WolfPack.modules[module].create != 'undefined') {
-      //value = WolfPack.modules[module].create(value);
-    }
-  }
-
-  // @todo internal/external redirect support needed.
-  // @todo write a better 404 fail-out
-  if (typeof template != 'undefined') {
-    theme.def.renderFile(template.file, {locals: template.locals}, function(err, html) {
-      theme.def.renderFile(theme.def.views + '/' + theme.def.layout, {locals: {content: html}}, function(err, html) {
-        res.writeHead(200, {'Content-Type': 'text/html'});
-        res.end(html + '\n');
-      });
+// @todo should we really be using the connect-form middleware here?
+connect(connect.bodyParser(), connect_form({keepExtensions: true}), function (req, res) {
+  if (req.form) {
+    req.form.complete(function(err, fields, files){
+      respond.success(req, res);
     });
   }
-  else {
-    console.log(req.url);
-    res.writeHead(404, {'Content-Type': 'text/html'});
-    res.end('Page not found: ' + req.url + '\n');
+  else if (req.body) {
+    // @todo normalize req.body and req.form.fields
+    respond.success(req, res);
   }
+  respond.success(req, res);
 }).listen(4000);
 
 console.log('Server running at http://127.0.0.1:4000/');

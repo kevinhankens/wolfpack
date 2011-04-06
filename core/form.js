@@ -8,7 +8,7 @@ module.exports.engine = function(def) {
     var renderedForm = '<form method="' 
       + this.def.method 
       + '" action="' + this.def.action
-      + '" enctype="multipart/form-data">';
+      + '" enctype="application/x-www-form-urlencoded">';
     for(element in this.def.elements) {
       var title = typeof this.def.elements[element].title != 'undefined' ? '<h5>' + this.def.elements[element].title + '</h5>'  : '';
       var tag = '';
