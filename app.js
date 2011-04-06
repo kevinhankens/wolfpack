@@ -127,14 +127,23 @@ var respond = {
 connect(connect.bodyParser(), connect_form({keepExtensions: true}), function (req, res) {
   if (req.form) {
     req.form.complete(function(err, fields, files){
+      req.form_input = {
+        fields: fields,
+        files: files,
+      }
       respond.success(req, res);
     });
   }
   else if (req.body) {
-    // @todo normalize req.body and req.form.fields
+    req.form_input = {
+      fields: req.body,
+        files: {},
+    }
     respond.success(req, res);
   }
-  respond.success(req, res);
+  else {
+    respond.success(req, res);
+  }
 }).listen(4000);
 
 console.log('Server running at http://127.0.0.1:4000/');

@@ -26,10 +26,11 @@ exports.routes = {
   },
   'POST:/create/%type': {
     callback: function(req, res) {
+      // @todo validation should probably re-render the form here.
       return {
         file: 'views/home.jade',
         locals: {
-          message: 'RECEIVED!',
+          message: 'RECEIVED: ' + req.form_input.fields['input-single-test-textfield'],
         }
       }
     }
