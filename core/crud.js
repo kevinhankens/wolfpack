@@ -1,3 +1,5 @@
+var fs = require('fs');
+
 /**
  * Default routing definitions for CRUD functions.
  */
@@ -24,21 +26,42 @@ exports.routes = {
     callback: function(req, res, next) {
       // @todo validation should probably re-render the form here.
 
+      // Create a pseudo-guid here for the file name.
       var id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
         return v.toString(16);
       });
 
-console.log(id);
-  
-      req.wolfpack.template = {
-        file: 'views/home.jade',
-        locals: {
-          message: 'RECEIVED: ' + req.form_input.fields['input-single-test-textfield'],
+      // Open that file to write the form data to.
+      var message;
+      fs.open(req.wolfpack.config.base_path + 'content/' + id + '.json', 'w+', '0766', function(err, fd) {
+        if (err) {
+          message = err.message;
+          console.log(message);
         }
-      }
+        else {
+          // Save the object as JSON-text data to the file.
+          var json_text = JSON.stringify(req.form_input);
+          fs.write(fd, json_text, undefined, undefined, function(err, written, buffer) {
+            if (err) {
+              message = err.message;
+              console.log(message);
+            }
+            else {
+              message = 'File: ' + id + '.json written!';
+            }
 
-      next(req, res);
+            req.wolfpack.template = {
+              file: 'views/home.jade',
+              locals: {
+                message: 'RECEIVED: ' + message,
+              }
+            }
+  
+            next(req, res);
+          });
+        }
+      });
     }
   },
 }

@@ -9,12 +9,17 @@ var fs = require('fs')
 // @todo use require('url').parse('/status?name=ryan', true) instead of custom query parser?
 
 var Config = require(__dirname + '/config.js');
+if (typeof Config.public == 'undefined') { 
+  Config.public = {};
+}
+Config.public.base_path = __dirname + '/';
 
 /**
  * The WolfPack object handles all of the request/response tasks such as routing and
  * invoking/chaining overrides.
  */
 var WolfPack = {
+  config: Config, 
   modules: {},
   routes: {},
   content_types: {},
@@ -77,7 +82,7 @@ var WolfPack = {
    */
   matchRoute: function(req, res) {
     // Allow us to keep things in the request object, such as URL arguments.
-    req.wolfpack = {};
+    req.wolfpack = {config: WolfPack.config.public};
 
     // Invoke wolfpack routes. Each will be a regex matching the beginning
     // of the request URL. Query string parameters are stripped for pattern
