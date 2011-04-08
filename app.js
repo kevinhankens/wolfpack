@@ -15,6 +15,7 @@ var WolfPack = {
   modules: {},
   routes: {},
   content_types: {},
+  overrides: {},
   addModule: function(name, module) {
     this.modules[name] = module;
   },
@@ -26,6 +27,82 @@ var WolfPack = {
   addContentType: function (type, def) {
     this.content_types[type] = def;
   },
+  addOverride: function(override, func) {
+    if (typeof this.overrides[override] == 'undefined') {
+      this.overrides[override] = [];
+    }
+    this.overrides[override].push(func);
+  },
+  /**
+   * Execute a number of callbacks which take the same arguments in a synchronous manner.
+   * e.g. Wolfpack({arg1: 'value'}, [callback1, callback2], function(args) {
+   *   // Each of callbacks will be executed in a chain with args being passed
+   *   // along to each one. Finally, args will be returned to you.
+   * });
+   */
+  // @todo how does this behave when there is high concurrency?
+  syncChain: function (args, callbacks, next) {
+    if (typeof callbacks != 'undefined' && callbacks.length > 0) {
+      var callback = callbacks.pop();
+      WolfPack.syncChain(args, callbacks, callback);
+    }
+    next(args);
+  },
+  matchRoute: function(req, res) {
+    // Allow us to keep things in the request object, such as URL arguments.
+    req.wolfpack = {};
+
+    // Invoke wolfpack routes. Each will be a regex matching the beginning
+    // of the request URL. Query string parameters are stripped for pattern
+    // matching, but they are still sent to the argument parser.
+    var req_url = req.method + ':' + req.url.replace(/\?.*$/, '');
+    for (route in WolfPack.routes) {
+
+      // @todo is there a quicker way to find a matching route?
+      // @todo we should chain these methods
+      if (req_url.match(WolfPack.routes[route].regex)) {
+        var match = true;
+        req.wolfpack.args = url.parse(req.url, route);
+        req.wolfpack.content_types = WolfPack.content_types;
+        WolfPack.routes[route].callback(req, res, function(req, res) {
+
+          // @todo internal/external redirect support needed.
+          // @todo write a better 404 fail-out
+          var template = req.wolfpack.template;
+          if (typeof template != 'undefined') {
+
+            // Synchronously call all theme overrides, then pass the result
+            // into the theme rendering.
+            WolfPack.syncChain({req: req, res: res}, WolfPack.overrides.alter_template, function(args) {
+              req = args.req;
+              res = args.res;
+
+              theme.def.renderFile(template.file, {locals: template.locals}, function(err, html) {
+                theme.def.renderFile(theme.def.views + '/' + theme.def.layout, {locals: {content: html}}, function(err, html) {
+                  res.writeHead(200, {'Content-Type': 'text/html'});
+                  res.end(html + '\n');
+                });
+              });
+            });
+          }
+          else {
+            WolfPack.pageNotFound(req, res);
+          }
+        });
+        break;
+      }
+    }
+    if (!match) {
+      WolfPack.pageNotFound(req, res);
+    }
+  },
+  pageNotFound: function(req, res) {
+    console.log('Page not found: ' + req.url);
+
+    res.writeHead(404, {'Content-Type': 'text/html'});
+    res.write("&lt;h1&gt;404 Not Found&lt;/h1&gt;");
+    res.end("The page you were looking for: "+req.url+" can not be found");
+  }
 }
 
 /**
@@ -47,6 +124,7 @@ for (route in crud.routes) {
  * aspect overrides, etc.
  */
 // @todo how can we make an api out of the known overrides? e.g. content types and routing?
+// @todo this should use fs.readdirSync
 fs.readdir(__dirname + '/wolfpack', function (err, files) {
   if (err) {
     console.log(err);
@@ -69,31 +147,27 @@ fs.readdir(__dirname + '/wolfpack', function (err, files) {
             WolfPack.addContentType(type, module.content_types[type]);
           }
         }
+        // Add in overrides.
+        var overrides = ['alter_template'];
+        for (override in overrides) {
+          if (typeof module[overrides[override]]) {
+            WolfPack.addOverride(overrides[override], module[overrides[override]]);
+          }
+        }
       }
     }
   }
 });
 
+// WolfPack.staticChain({test: 'blah'}, [testfunc1, testfunc2], function(args) {
+// console.log('finished chain');
+// console.log(args);
+// })
+
+// @deprecated, move into wolfpack chain
 var respond = {
   success: function(req, res) {
     //console.log(req.body);
-    // Allow us to keep things in the request object, such as URL arguments.
-    req.wolfpack = {};
-
-    // Invoke wolfpack routes. Each will be a regex matching the beginning
-    // of the request URL. Query string parameters are stripped for pattern
-    // matching, but they are still sent to the argument parser.
-    var req_url = req.method + ':' + req.url.replace(/\?.*$/, '');
-    for (route in WolfPack.routes) {
-      // @todo is there a quicker way to find a matching route?
-      if (req_url.match(WolfPack.routes[route].regex)) {
-        req.wolfpack.args = url.parse(req.url, route);
-        req.wolfpack.content_types = WolfPack.content_types;
-        var template = WolfPack.routes[route].callback(req, res);
-        break;
-      }
-    }
-
     // Invoke wolfpack modules
     for (module in WolfPack.modules) {
       if (typeof WolfPack.modules[module].create != 'undefined') {
@@ -101,21 +175,6 @@ var respond = {
       }
     }
 
-    // @todo internal/external redirect support needed.
-    // @todo write a better 404 fail-out
-    if (typeof template != 'undefined') {
-      theme.def.renderFile(template.file, {locals: template.locals}, function(err, html) {
-        theme.def.renderFile(theme.def.views + '/' + theme.def.layout, {locals: {content: html}}, function(err, html) {
-          res.writeHead(200, {'Content-Type': 'text/html'});
-          res.end(html + '\n');
-        });
-      });
-    }
-    else {
-      console.log(req.url);
-      res.writeHead(404, {'Content-Type': 'text/html'});
-      res.end('Page not found: ' + req.url + '\n');
-    }
   },
 }
 
@@ -127,11 +186,12 @@ var respond = {
 connect(connect.bodyParser(), connect_form({keepExtensions: true}), function (req, res) {
   if (req.form) {
     req.form.complete(function(err, fields, files){
+      // @todo needs error handling.
       req.form_input = {
         fields: fields,
         files: files,
       }
-      respond.success(req, res);
+      WolfPack.matchRoute(req, res);
     });
   }
   else if (req.body) {
@@ -139,10 +199,10 @@ connect(connect.bodyParser(), connect_form({keepExtensions: true}), function (re
       fields: req.body,
         files: {},
     }
-    respond.success(req, res);
+    WolfPack.matchRoute(req, res);
   }
   else {
-    respond.success(req, res);
+    WolfPack.matchRoute(req, res);
   }
 }).listen(4000);
 
