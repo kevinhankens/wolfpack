@@ -1,3 +1,6 @@
+/**
+ * Default routing definitions for CRUD functions.
+ */
 exports.routes = {
   'GET:/create/%type': {
     callback: function(req, res, next) {
@@ -40,8 +43,40 @@ console.log(id);
   },
 }
 
+/**
+ * Load the content type definition, provided by a wolfpack module.
+ * Content type definition objects may be provided by custom modules by exporting
+ * an object of the form:
+
+ * exports.content_types = {
+ *   'blog': {
+ *     form: {
+ *       method: 'POST',
+ *       elements: {
+ *         test: {
+ *           type: 'textfield',
+ *           title: 'TEST',
+ *           value: 'TEST',
+ *           attrs: {},
+ *         },
+ *         submit: {
+ *           type: 'submit',
+ *           value: 'Submit',
+ *           attrs: {},
+ *         }
+ *       }
+ *     }
+ *   }
+ * }
+ *
+ * The key of the content type object ('blog' above) will determine the URL
+ * for crud functions, e.g. /create/blog.
+ * 
+ * @param Object req
+ * @param Object res
+ * @param Object next
+ */
 exports.load_def = function(req, res, next) {
-console.log('here');
   // Look up a content type form definition. Should be part of a
   // wolfpack module export. e.g. exports.content_types.form.
   if (typeof req.wolfpack.content_types[req.wolfpack.args.type] != 'undefined') {
@@ -54,6 +89,5 @@ console.log('here');
     req.wolfpack.form_def = {};
   }
 
-console.log('def');
   next(req, res);
 }

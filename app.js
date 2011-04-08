@@ -1,5 +1,4 @@
-var 
-    fs = require('fs')
+var fs = require('fs')
     url = require(__dirname + '/core/urlparser.js')
     theme = require(__dirname + '/core/theme.js')
     form = require(__dirname + '/core/form.js')
@@ -11,6 +10,10 @@ var
 
 var Config = require(__dirname + '/config.js');
 
+/**
+ * The WolfPack object handles all of the request/response tasks such as routing and
+ * invoking/chaining overrides.
+ */
 var WolfPack = {
   modules: {},
   routes: {},
@@ -38,10 +41,18 @@ var WolfPack = {
    * This is recursive, creating a nested chain of events, each one calling the next in
    * the chain with the same arguments. Eventually, when the chain is done, it will call
    * the next function from the original implementor.
+   *
    * e.g. Wolfpack({arg1: 'value'}, [callback1, callback2], function(args) {
    *   // Each of callbacks will be executed in a chain with args being passed
    *   // along to each one. Finally, args will be returned to you.
    * });
+   *
+   * @param Object args
+   *  The arguments to be passed along the chain.
+   * @param Array callbacks
+   *  The list of callback functions in the chain.
+   * @param Function next
+   *  Function to execute at the end of the chain.
    */
   // @todo how does this behave when there is high concurrency?
   syncChain: function (args, callbacks, next) {
@@ -54,6 +65,16 @@ var WolfPack = {
       callback(args, next);
     }
   },
+  /**
+   * Routing happens here. When wolfpack modules are loaded, any routes are
+   * converted into Regex objects. These are compared against the req.url here
+   * and the appropriate callback is executed.
+   * 
+   * @param Object req
+   *  The http request object.
+   * @param Object res
+   *  The http response object.
+   */
   matchRoute: function(req, res) {
     // Allow us to keep things in the request object, such as URL arguments.
     req.wolfpack = {};
@@ -187,9 +208,11 @@ var respond = {
 
 
 /**
- * Start the server.
+ * Start the server. We will also load the bodyParser and connect-form middleware here
+ * to handle post requests with varying encoding types. After handling the request body
+ * and upload files, we call matchRoute to find a suitable callback.
  */
-// @todo should we really be using the connect-form middleware here?
+// @todo https handing?
 connect(connect.bodyParser(), connect_form({keepExtensions: true}), function (req, res) {
   if (req.form) {
     req.form.complete(function(err, fields, files){
