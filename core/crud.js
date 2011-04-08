@@ -51,6 +51,8 @@ exports.routes = {
               message = 'File: ' + id + '.json written!';
             }
 
+            fs.close(fd);
+
             req.wolfpack.template = {
               file: 'views/home.jade',
               locals: {
@@ -61,6 +63,37 @@ exports.routes = {
             next(req, res);
           });
         }
+      });
+    }
+  },
+  'GET:/view/%type/%id': {
+    callback: function(req, res, next) {
+      // @todo sanitize id
+      var id = req.wolfpack.args.id.replace(/[^\-0-9A-Za-z]/g, ''),
+          message;
+
+      fs.readFile(req.wolfpack.config.base_path + 'content/' + id + '.json', undefined, function(err, data) {
+        if (err) {
+          message = err.message;
+          console.log(message);
+        }
+        else {
+          var content = JSON.parse(data);
+
+          message = content.fields['input-single-title-textfield'] +
+          content.fields['input-single-body-textarea']
+          ;
+        }
+
+        req.wolfpack.template = {
+          file: 'views/home.jade',
+          locals: {
+            message: 'CONTENT: ' + message,
+          }
+        }
+  
+        next(req, res);
+
       });
     }
   },
