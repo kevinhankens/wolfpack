@@ -3,6 +3,7 @@ var fs = require('fs')
     theme = require(__dirname + '/core/theme.js')
     form = require(__dirname + '/core/form.js')
     crud = require(__dirname + '/core/crud.js')
+    sync = require(__dirname + '/core/sync.js')
     connect = require('connect')
     connect_form = require('connect-form')
     ;
@@ -42,35 +43,6 @@ var WolfPack = {
     this.overrides[override].push(func);
   },
   /**
-   * Execute a number of callbacks which take the same arguments in a synchronous manner.
-   * This is recursive, creating a nested chain of events, each one calling the next in
-   * the chain with the same arguments. Eventually, when the chain is done, it will call
-   * the next function from the original implementor.
-   *
-   * e.g. Wolfpack({arg1: 'value'}, [callback1, callback2], function(args) {
-   *   // Each of callbacks will be executed in a chain with args being passed
-   *   // along to each one. Finally, args will be returned to you.
-   * });
-   *
-   * @param Object args
-   *  The arguments to be passed along the chain.
-   * @param Array callbacks
-   *  The list of callback functions in the chain.
-   * @param Function next
-   *  Function to execute at the end of the chain.
-   */
-  // @todo how does this behave when there is high concurrency?
-  syncChain: function (args, callbacks, next) {
-    if (typeof callbacks != 'undefined' && callbacks.length > 1) {
-      var callback = callbacks.pop();
-      WolfPack.syncChain(args, callbacks, function(args) {callback(args, next);});
-    }
-    else {
-      var callback = callbacks.pop();
-      callback(args, next);
-    }
-  },
-  /**
    * Routing happens here. When wolfpack modules are loaded, any routes are
    * converted into Regex objects. These are compared against the req.url here
    * and the appropriate callback is executed.
@@ -106,7 +78,7 @@ var WolfPack = {
             // Synchronously call all theme overrides, then pass the result
             // into the theme rendering.
             var callbacks = WolfPack.overrides.alter_template.slice(0);
-            WolfPack.syncChain({req: req, res: res}, callbacks, function(args) {
+            sync({req: req, res: res}, callbacks, function(args) {
               req = args.req;
               res = args.res;
 
@@ -191,11 +163,6 @@ fs.readdir(__dirname + '/wolfpack', function (err, files) {
     }
   }
 });
-
-// WolfPack.staticChain({test: 'blah'}, [testfunc1, testfunc2], function(args) {
-// console.log('finished chain');
-// console.log(args);
-// })
 
 // @deprecated, move into wolfpack chain
 var respond = {
