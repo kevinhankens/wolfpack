@@ -85,15 +85,30 @@ exports.routes = {
           ;
         }
 
-        req.wolfpack.template = {
-          file: 'views/home.jade',
-          locals: {
-            message: 'CONTENT: ' + message,
-          }
-        }
-  
-        next(req, res);
+        /** 
+         * Load the content type theme callback.
+         * We expect that the theme callback will return a template object
+         * that we can send around for alteration.
+         * 
+         * var template = {
+         *   file: 'views/template.jade',
+         *   locals: {
+         *     message: 'My Message',
+         *   }
+         * }
+         */
+        def = exports.load_def(req, res, function(req, res) {
 
+          // @todo we should be able to call syncChain from core modules.
+          //       should we pass around the full WolfPack obj in req?
+          // @todo send error if exists.
+          req.wolfpack.content_theme(content, null, function(template) {
+
+            req.wolfpack.template = template;
+  
+            next(req, res);
+          });
+        });
       });
     }
   },
@@ -135,10 +150,15 @@ exports.routes = {
 exports.load_def = function(req, res, next) {
   // Look up a content type form definition. Should be part of a
   // wolfpack module export. e.g. exports.content_types.form.
+  // @todo should we sanitize the argument here?
   if (typeof req.wolfpack.content_types[req.wolfpack.args.type] != 'undefined') {
+    // Load the form definition.
     req.wolfpack.form_def = req.wolfpack.content_types[req.wolfpack.args.type].form;
     req.wolfpack.form_def.method = 'POST';
     req.wolfpack.form_def.action = '/create/' + req.wolfpack.args.type;
+    // Load the theme callback.
+    // @todo the theme callback shouldn't be a requirement
+    req.wolfpack.content_theme = req.wolfpack.content_types[req.wolfpack.args.type].theme;
   }
   else {
     // @todo 404
@@ -147,3 +167,4 @@ exports.load_def = function(req, res, next) {
 
   next(req, res);
 }
+
