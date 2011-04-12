@@ -22,6 +22,9 @@ exports = module.exports = function (args, callbacks, next) {
       var callback = callbacks.pop();
       exports(args, callbacks, function(args) {callback(args, next);});
     }
+    else if (typeof callbacks == 'undefined' || callbacks.length == 0) {
+      next(args); 
+    }
     else {
       var callback = callbacks.pop();
       callback(args, next);

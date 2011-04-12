@@ -24,7 +24,7 @@ var WolfPack = {
   modules: {},
   routes: {},
   content_types: {},
-  overrides: {},
+  overrides: [],
   addModule: function(name, module) {
     this.modules[name] = module;
   },
@@ -54,7 +54,13 @@ var WolfPack = {
    */
   matchRoute: function(req, res) {
     // Allow us to keep things in the request object, such as URL arguments.
-    req.wolfpack = {config: WolfPack.config.public};
+    // @todo cache the overrides somehow?
+    req.wolfpack = {config: WolfPack.config.public, overrides: {}};
+    for (override in this.overrides) {
+      if (typeof this.overrides[override] != 'undefined' && this.overrides[override].length > 0) {
+        req.wolfpack.overrides[override] = this.overrides[override].slice(0);
+      }
+    }
 
     // Invoke wolfpack routes. Each will be a regex matching the beginning
     // of the request URL. Query string parameters are stripped for pattern
@@ -153,9 +159,9 @@ fs.readdir(__dirname + '/wolfpack', function (err, files) {
           }
         }
         // Add in overrides.
-        var overrides = ['alter_template'];
+        var overrides = ['alter_template', 'content_view'];
         for (override in overrides) {
-          if (typeof module[overrides[override]]) {
+          if (typeof module[overrides[override]] != 'undefined') {
             WolfPack.addOverride(overrides[override], module[overrides[override]]);
           }
         }

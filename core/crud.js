@@ -1,4 +1,5 @@
-var fs = require('fs');
+var fs = require('fs')
+    sync = require('../core/sync.js');
 
 /**
  * Default routing definitions for CRUD functions.
@@ -74,15 +75,11 @@ exports.routes = {
 
       fs.readFile(req.wolfpack.config.base_path + 'content/' + id + '.json', undefined, function(err, data) {
         if (err) {
-          message = err.message;
+          req.wolfpack.content.err = err;
           console.log(message);
         }
         else {
-          var content = JSON.parse(data);
-
-          message = content.fields['input-single-title-textfield'] +
-          content.fields['input-single-body-textarea']
-          ;
+          req.wolfpack.content = JSON.parse(data);
         }
 
         /** 
@@ -99,14 +96,14 @@ exports.routes = {
          */
         def = exports.load_def(req, res, function(req, res) {
 
-          // @todo we should be able to call syncChain from core modules.
-          //       should we pass around the full WolfPack obj in req?
-          // @todo send error if exists.
-          req.wolfpack.content_theme(content, null, function(template) {
+          sync({req: req, res: res}, req.wolfpack.overrides.content_view, function(args) {
+            // @todo send error if exists.
+            req.wolfpack.content_theme(args.req.wolfpack.content, null, function(template) {
 
-            req.wolfpack.template = template;
+              req.wolfpack.template = template;
   
-            next(req, res);
+              next(req, res);
+            });
           });
         });
       });
@@ -159,6 +156,7 @@ exports.load_def = function(req, res, next) {
     // Load the theme callback.
     // @todo the theme callback shouldn't be a requirement
     req.wolfpack.content_theme = req.wolfpack.content_types[req.wolfpack.args.type].theme;
+    req.wolfpack.content_type = req.wolfpack.args.type;
   }
   else {
     // @todo 404
