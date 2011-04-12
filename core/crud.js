@@ -96,7 +96,7 @@ exports.routes = {
          */
         def = exports.load_def(req, res, function(req, res) {
 
-          sync({req: req, res: res}, req.wolfpack.overrides.content_view, function(args) {
+          sync({req: req, res: res}, req.wolfpack.overrides.crud_alter_view, function(args) {
             // @todo send error if exists.
             req.wolfpack.content_theme(args.req.wolfpack.content, null, function(template) {
 

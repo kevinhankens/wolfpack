@@ -1,9 +1,9 @@
 var fs = require('fs')
     url = require(__dirname + '/core/urlparser.js')
     theme = require(__dirname + '/core/theme.js')
+    aspect = require(__dirname + '/core/aspect.js')
     form = require(__dirname + '/core/form.js')
     crud = require(__dirname + '/core/crud.js')
-    sync = require(__dirname + '/core/sync.js')
     connect = require('connect')
     connect_form = require('connect-form')
     ;
@@ -14,6 +14,11 @@ if (typeof Config.public == 'undefined') {
   Config.public = {};
 }
 Config.public.base_path = __dirname + '/';
+
+// Set up aspects.
+// @todo why do we need to copy these methods in order for them to run?
+var aspect_load = aspect.load;
+var aspect_chain = aspect.chain;
 
 /**
  * The WolfPack object handles all of the request/response tasks such as routing and
@@ -84,7 +89,7 @@ var WolfPack = {
             // Synchronously call all theme overrides, then pass the result
             // into the theme rendering.
             var callbacks = WolfPack.overrides.alter_template.slice(0);
-            sync({req: req, res: res}, callbacks, function(args) {
+            aspect_chain({req: req, res: res}, callbacks, function(args) {
               req = args.req;
               res = args.res;
 
@@ -129,59 +134,38 @@ for (route in crud.routes) {
 // @todo allow modules to override the theme object.
 
 /**
- * Load wolfpack modules and routes.
- * All custom modules in /wolfpack will be processed here and
- * stored in memory. These objects can emit things like routes,
- * aspect overrides, etc.
+ * Set up aspects.
  */
-// @todo how can we make an api out of the known overrides? e.g. content types and routing?
-// @todo this should use fs.readdirSync
-fs.readdir(__dirname + '/wolfpack', function (err, files) {
-  if (err) {
-    console.log(err);
+
+// Load aspects from wolfpack modules.
+// @todo why does calling aspect.load once destroy the object?
+var aspects = aspect_load(['routes', 'content_types', 'alter_template', 'crud_alter_view']);
+
+// Iterate through the reported aspects and attach them to the WolfPack object.
+for (aspect_type in aspects) {
+  if (aspect_type.match(/alter/)) {
+    for (aspect_callback in aspects[aspect_type]) {
+      // Alter aspects only have one method callback so set them up here.
+      WolfPack.addOverride(aspect_type, aspects[aspect_type][aspect_callback]); 
+    }
   }
   else {
-    for (file in files) {
-      if (files[file].match(/\.js$/)) {
-        // Add modules.
-        var module = require(__dirname + '/wolfpack/' + files[file]);
-        WolfPack.addModule(file, module);
-        // Add routes.
-        if (typeof module.routes != 'undefined') {
-          for (route in module.routes) {
-            WolfPack.addRoute(route, module.routes[route]);
-          }
-        }
-        // Add content types.
-        if (typeof module.content_types != 'undefined') {
-          for (type in module.content_types) {
-            WolfPack.addContentType(type, module.content_types[type]);
-          }
-        }
-        // Add in overrides.
-        var overrides = ['alter_template', 'content_view'];
-        for (override in overrides) {
-          if (typeof module[overrides[override]] != 'undefined') {
-            WolfPack.addOverride(overrides[override], module[overrides[override]]);
-          }
+    // Other aspects such as routes and content types can have N number of options,
+    // so attach each one of them to the WolfPack object
+    // @todo can this be genericized? use one setter?
+    for (aspect_callback in aspects[aspect_type]) {
+      for (callback in aspects[aspect_type][aspect_callback]) {
+        switch (aspect_type) {
+          case 'routes':
+            WolfPack.addRoute(callback, aspects[aspect_type][aspect_callback][callback]);
+            break;
+          case 'content_types':
+            WolfPack.addContentType(callback, aspects[aspect_type][aspect_callback][callback]);
+            break;
         }
       }
     }
   }
-});
-
-// @deprecated, move into wolfpack chain
-var respond = {
-  success: function(req, res) {
-    //console.log(req.body);
-    // Invoke wolfpack modules
-    for (module in WolfPack.modules) {
-      if (typeof WolfPack.modules[module].create != 'undefined') {
-        //value = WolfPack.modules[module].create(value);
-      }
-    }
-
-  },
 }
 
 
