@@ -1,5 +1,7 @@
 var fs = require('fs')
-    sync = require('../core/sync.js');
+    aspect = require('../core/aspect.js');
+
+var aspect_chain = aspect.chain;
 
 /**
  * Default routing definitions for CRUD functions.
@@ -23,7 +25,43 @@ exports.routes = {
       });
     }
   },
-  'POST:/create/%type': {
+  /**
+   * Update form.
+   * Load content from the json file and feather with the edit form.
+   */
+  'GET:/update/%type/%id': {
+    callback: function(req, res, next) {
+      // @todo sanitize id
+      var id = req.wolfpack.args.id.replace(/[^\-0-9A-Za-z]/g, ''),
+          message;
+
+      fs.readFile(req.wolfpack.config.base_path + 'content/' + id + '.json', undefined, function(err, data) {
+        if (err) {
+          req.wolfpack.content.err = err;
+          console.log(message);
+        }
+        else {
+          req.wolfpack.content = JSON.parse(data);
+        }
+
+        def = exports.load_def(req, res, function(req, res) {
+          var form_create = new form.engine(req.wolfpack.form_def);
+          var message = form_create.renderForm();
+
+          // @todo template file for crud routes.
+          req.wolfpack.template = {
+            file: 'views/home.jade',
+            locals: {
+              message: message,
+            }
+          };
+
+        next(req, res);
+        });
+      });
+    }
+  },
+  'POST:/save/%type': {
     callback: function(req, res, next) {
       // @todo validation should probably re-render the form here.
 
@@ -96,7 +134,7 @@ exports.routes = {
          */
         def = exports.load_def(req, res, function(req, res) {
 
-          sync({req: req, res: res}, req.wolfpack.overrides.crud_alter_view, function(args) {
+          aspect_chain({req: req, res: res}, req.wolfpack.overrides.crud_alter_view, function(args) {
             // @todo send error if exists.
             req.wolfpack.content_theme(args.req.wolfpack.content, null, function(template) {
 
@@ -107,6 +145,55 @@ exports.routes = {
           });
         });
       });
+    }
+  },
+  'GET:/delete/%type/%id': {
+    // @todo load this content for a better message (title)
+    // @todo 404 handling for bad file name.
+    callback: function(req, res, next) {
+      var delete_form = {
+        method: 'POST',
+        action: '/delete/' + req.wolfpack.args.type + '/' + req.wolfpack.args.id,
+        elements: {
+          delete: {
+            type: 'submit',
+            value: 'Yes, Delete',
+          }
+        }
+      }
+
+      var form_create = new form.engine(delete_form);
+      var message = '<h2>Are you sure?</h2>' + form_create.renderForm();
+
+      req.wolfpack.template = {
+        file: 'views/home.jade',
+        locals: {
+          message: message,
+        }
+      }
+
+      next(req, res);
+    }
+  },
+  // @todo why doesn't node recognize a DELETE method?
+  'POST:/delete/%type/%id': {
+    callback: function(req, res, next) {
+      var file = req.wolfpack.args.id;
+      var file_sanitized = file.replace(/[^0-9a-zA-Z\-]/g, '') + '.json';
+      var path = req.wolfpack.config.base_path + 'content/' + file_sanitized;
+      // @todo use fs.unlink so that we can check for errors
+      var unlink = fs.unlinkSync(path);
+
+      var message = 'Deleted!';
+
+      req.wolfpack.template = {
+        file: 'views/home.jade',
+        locals: {
+          message: message,
+        }
+      }
+
+      next(req, res);
     }
   },
 }
@@ -152,7 +239,20 @@ exports.load_def = function(req, res, next) {
     // Load the form definition.
     req.wolfpack.form_def = req.wolfpack.content_types[req.wolfpack.args.type].form;
     req.wolfpack.form_def.method = 'POST';
-    req.wolfpack.form_def.action = '/create/' + req.wolfpack.args.type;
+    req.wolfpack.form_def.action = '/save/' + req.wolfpack.args.type;
+
+    // Feather saved content if it exists.
+    if (typeof req.wolfpack.content != 'undefined') {
+      for (element in req.wolfpack.content.fields) {
+        // Look for something with the pattern input-cardinality-fieldname-fieldtype.
+        // the fieldname will correspond with one of the elements in our form definition.
+        var name = element.match(/^([^\-]+[\-]{1}){2}(.*)[\-]{1}[^\-]*$/);
+        if (name[2] && typeof req.wolfpack.form_def.elements[name[2]] != 'undefined') {
+          req.wolfpack.form_def.elements[name[2]].value = req.wolfpack.content.fields[element];
+        }
+      }
+    }
+
     // Load the theme callback.
     // @todo the theme callback shouldn't be a requirement
     req.wolfpack.content_theme = req.wolfpack.content_types[req.wolfpack.args.type].theme;
