@@ -41,6 +41,7 @@ module.exports.engine = function(def) {
         add = '';
       }
 
+      // @todo hidden elements shouldn't be wrapped in a div.
       renderedForm += '<div id="form-' + element + '" class="form-item' + multi + '">' + title + tag + add + '</div>';
     }
     return renderedForm + '</form>';

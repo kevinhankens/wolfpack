@@ -61,48 +61,23 @@ exports.routes = {
       });
     }
   },
+  // @todo should we make the id a hidden field and use the same callback for insert/update?
   'POST:/save/%type': {
     callback: function(req, res, next) {
       // @todo validation should probably re-render the form here.
 
-      // Create a pseudo-guid here for the file name.
-      var id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
-        return v.toString(16);
-      });
+      if (typeof req.form_input.fields['input-single-id-hidden'] != 'undefined') {
+        var id = req.form_input.fields['input-single-id-hidden'];
+      }
+      else {
+        // Create a pseudo-guid here for the file name.
+        var id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+          return v.toString(16);
+        });
+      }
 
-      // Open that file to write the form data to.
-      var message;
-      fs.open(req.wolfpack.config.base_path + 'content/' + id + '.json', 'w+', '0766', function(err, fd) {
-        if (err) {
-          message = err.message;
-          console.log(message);
-        }
-        else {
-          // Save the object as JSON-text data to the file.
-          var json_text = JSON.stringify(req.form_input);
-          fs.write(fd, json_text, undefined, undefined, function(err, written, buffer) {
-            if (err) {
-              message = err.message;
-              console.log(message);
-            }
-            else {
-              message = 'File: ' + id + '.json written!';
-            }
-
-            fs.close(fd);
-
-            req.wolfpack.template = {
-              file: 'views/home.jade',
-              locals: {
-                message: 'RECEIVED: ' + message,
-              }
-            }
-  
-            next(req, res);
-          });
-        }
-      });
+      exports.save(req, res, id, next);
     }
   },
   'GET:/view/%type/%id': {
@@ -198,6 +173,43 @@ exports.routes = {
   },
 }
 
+exports.save = function(req, res, id, next) {
+
+  // Open that file to write the form data to.
+  var message;
+  fs.open(req.wolfpack.config.base_path + 'content/' + id + '.json', 'w+', '0766', function(err, fd) {
+    if (err) {
+      message = err.message;
+      console.log(message);
+      // @todo errors will hang here.
+    }
+    else {
+      // Save the object as JSON-text data to the file.
+      var json_text = JSON.stringify(req.form_input);
+      fs.write(fd, json_text, undefined, undefined, function(err, written, buffer) {
+        if (err) {
+          message = err.message;
+          console.log(message);
+        }
+        else {
+          message = 'File: ' + id + '.json written!';
+        }
+
+        fs.close(fd);
+
+        req.wolfpack.template = {
+          file: 'views/home.jade',
+          locals: {
+            message: 'RECEIVED: ' + message,
+          }
+        }
+  
+        next(req, res);
+      });
+    }
+  });
+}
+
 /**
  * Load the content type definition, provided by a wolfpack module.
  * Content type definition objects may be provided by custom modules by exporting
@@ -237,7 +249,10 @@ exports.load_def = function(req, res, next) {
   // @todo should we sanitize the argument here?
   if (typeof req.wolfpack.content_types[req.wolfpack.args.type] != 'undefined') {
     // Load the form definition.
-    req.wolfpack.form_def = req.wolfpack.content_types[req.wolfpack.args.type].form;
+    // @todo is this totally hackish? We need to make a copy of the form object here
+    //       otherwise we will edit the original b/c it is passed by reference.
+    var def = JSON.parse(JSON.stringify(req.wolfpack.content_types[req.wolfpack.args.type].form));
+    req.wolfpack.form_def = def;
     req.wolfpack.form_def.method = 'POST';
     req.wolfpack.form_def.action = '/save/' + req.wolfpack.args.type;
 
@@ -251,6 +266,7 @@ exports.load_def = function(req, res, next) {
           req.wolfpack.form_def.elements[name[2]].value = req.wolfpack.content.fields[element];
         }
       }
+      req.wolfpack.form_def.elements.id = {type: 'hidden', value: req.wolfpack.args.id}
     }
 
     // Load the theme callback.
